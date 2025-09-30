@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orders-api-config
+  labels:
+    app: orders-api
+data:
+  LOG_LEVEL: info
+  FEATURE_FLAGS: "{}" # JSON object for simple toggles

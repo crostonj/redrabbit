@@ -1,0 +1,568 @@
+openapi: 3.0.3
+info:
+  title: Orders API
+  description: Core orders management API for retail home improvement supplies
+  version: 1.0.0
+  contact:
+    name: Orders API Support
+    email: api-support@redrabbit.com
+
+servers:
+  - url: https://api.orders.redrabbit.com/v1
+    description: Production server
+  - url: https://api-staging.orders.redrabbit.com/v1
+    description: Staging server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /orders:
+    get:
+      summary: List orders
+      description: Retrieve a paginated list of orders with optional filtering
+      parameters:
+        - name: customerId
+          in: query
+          description: Filter by customer ID
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Filter by order status
+          schema:
+            type: string
+            enum: [pending, processing, shipped, delivered, cancelled, returned]
+        - name: dateFrom
+          in: query
+          description: Filter orders from this date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: dateTo
+          in: query
+          description: Filter orders to this date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          description: Number of orders to return (max 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          description: Cursor for pagination
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+    post:
+      summary: Create new order
+      description: Create a new order with line items
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Order created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /orders/{orderId}:
+    get:
+      summary: Get order by ID
+      description: Retrieve a specific order by its ID
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: Order ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Order details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Order'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update order
+      description: Update order details (only allowed in pending status)
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: Order ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderRequest'
+      responses:
+        '200':
+          description: Order updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /orders/{orderId}/cancel:
+    post:
+      summary: Cancel order
+      description: Cancel an order (only allowed in pending status)
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: Order ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Reason for cancellation
+                  maxLength: 500
+      responses:
+        '200':
+          description: Order cancelled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Order'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /orders/{orderId}/line-items:
+    get:
+      summary: Get order line items
+      description: Retrieve all line items for a specific order
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: Order ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Order line items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrderLineItem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /orders/{orderId}/events:
+    get:
+      summary: Get order events
+      description: Retrieve audit trail of events for a specific order
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: Order ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Order events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrderEvent'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        orderNumber:
+          type: string
+        customerId:
+          type: string
+          format: uuid
+        customerType:
+          type: string
+          enum: [retail, commercial]
+        status:
+          type: string
+          enum: [pending, processing, shipped, delivered, cancelled, returned]
+        totalAmount:
+          type: integer
+          description: Total amount in cents
+        subtotal:
+          type: integer
+          description: Subtotal in cents
+        taxAmount:
+          type: integer
+          description: Tax amount in cents
+        shippingAmount:
+          type: integer
+          description: Shipping amount in cents
+        discountAmount:
+          type: integer
+          description: Discount amount in cents
+        billingAddress:
+          $ref: '#/components/schemas/Address'
+        shippingAddress:
+          $ref: '#/components/schemas/Address'
+        shippingMethod:
+          type: string
+          enum: [standard, expedited, freight]
+        paymentStatus:
+          type: string
+          enum: [pending, authorized, captured, failed, refunded]
+        estimatedDeliveryDate:
+          type: string
+          format: date-time
+          nullable: true
+        actualDeliveryDate:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        source:
+          type: string
+          enum: [web, api, phone, email]
+        lineItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderLineItem'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    OrderLineItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        productId:
+          type: string
+          format: uuid
+        productSku:
+          type: string
+        productName:
+          type: string
+        productDescription:
+          type: string
+          nullable: true
+        quantity:
+          type: integer
+          minimum: 1
+        unitPrice:
+          type: integer
+          description: Price per unit in cents
+        totalPrice:
+          type: integer
+          description: Total line price in cents
+        quantityShipped:
+          type: integer
+          minimum: 0
+        quantityReturned:
+          type: integer
+          minimum: 0
+
+    Address:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        addressLine1:
+          type: string
+        addressLine2:
+          type: string
+          nullable: true
+        city:
+          type: string
+        state:
+          type: string
+          pattern: '^[A-Z]{2}$'
+        postalCode:
+          type: string
+        country:
+          type: string
+          default: US
+        type:
+          type: string
+          enum: [billing, shipping, both]
+        isValidated:
+          type: boolean
+
+    OrderEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        orderId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          enum: [created, payment_authorized, payment_captured, payment_failed, 
+                 processing_started, shipped, delivered, cancelled, returned, 
+                 refunded, modified]
+        oldStatus:
+          type: string
+          nullable: true
+        newStatus:
+          type: string
+        triggeredBy:
+          type: string
+          enum: [customer, system, admin, integration]
+        userId:
+          type: string
+          format: uuid
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          nullable: true
+
+    CreateOrderRequest:
+      type: object
+      required: [customerId, lineItems, billingAddress, shippingAddress]
+      properties:
+        customerId:
+          type: string
+          format: uuid
+        customerType:
+          type: string
+          enum: [retail, commercial]
+          default: retail
+        lineItems:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [productId, quantity]
+            properties:
+              productId:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+                minimum: 1
+        billingAddress:
+          $ref: '#/components/schemas/CreateAddressRequest'
+        shippingAddress:
+          $ref: '#/components/schemas/CreateAddressRequest'
+        shippingMethod:
+          type: string
+          enum: [standard, expedited, freight]
+          default: standard
+        notes:
+          type: string
+          maxLength: 1000
+        source:
+          type: string
+          enum: [web, api, phone, email]
+          default: api
+
+    UpdateOrderRequest:
+      type: object
+      properties:
+        lineItems:
+          type: array
+          items:
+            type: object
+            properties:
+              productId:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+                minimum: 1
+        billingAddress:
+          $ref: '#/components/schemas/CreateAddressRequest'
+        shippingAddress:
+          $ref: '#/components/schemas/CreateAddressRequest'
+        shippingMethod:
+          type: string
+          enum: [standard, expedited, freight]
+        notes:
+          type: string
+          maxLength: 1000
+
+    CreateAddressRequest:
+      type: object
+      required: [addressLine1, city, state, postalCode]
+      properties:
+        addressLine1:
+          type: string
+          maxLength: 100
+        addressLine2:
+          type: string
+          maxLength: 100
+        city:
+          type: string
+          maxLength: 50
+        state:
+          type: string
+          pattern: '^[A-Z]{2}$'
+        postalCode:
+          type: string
+          pattern: '^\d{5}(-\d{4})?$'
+        country:
+          type: string
+          default: US
+        type:
+          type: string
+          enum: [billing, shipping, both]
+          default: both
+
+    PaginationMeta:
+      type: object
+      properties:
+        total:
+          type: integer
+        hasNext:
+          type: boolean
+        nextCursor:
+          type: string
+          nullable: true
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+
+  responses:
+    BadRequest:
+      description: Bad request - validation error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                $ref: '#/components/schemas/Error'
+
+    UnprocessableEntity:
+      description: Unprocessable entity - business logic error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                $ref: '#/components/schemas/Error'
