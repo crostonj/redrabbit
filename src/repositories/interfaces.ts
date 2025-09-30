@@ -23,6 +23,17 @@ export interface PaginatedResult<T> {
   hasPrev: boolean;
 }
 
+export interface CategoryRow {
+      id: string;
+      name: string;
+      description?: string | null;
+      parent_id?: string | null;
+      slug: string;
+      is_active: boolean;
+      created_at: string | Date;
+      updated_at: string | Date;
+  }
+
 export interface SearchOptions extends PaginationOptions {
   query?: string;
   filters?: Record<string, any>;

@@ -12,7 +12,8 @@ import type {
   ProductStats,
   PaginationOptions,
   PaginatedResult,
-  SearchOptions
+  SearchOptions,
+  CategoryRow
 } from './interfaces.js';
 import { InventoryMovementType } from './interfaces.js';
 import { DatabaseService } from '../services/database.js';
@@ -376,7 +377,9 @@ export class ProductRepository extends BaseRepositoryImpl<Product, CreateProduct
   /** Find all active categories (legacy name used in tests). */
   async findCategories(): Promise<Category[]> {
     const result = await this.db.query('SELECT * FROM categories WHERE deleted_at IS NULL ORDER BY name ASC');
-    return result.rows.map(row => this.mapRowToCategory(row));
+
+    const rows: CategoryRow[] = result.rows;
+    return rows.map((row: CategoryRow) => this.mapRowToCategory(row));
   }
 
   /**
@@ -389,8 +392,10 @@ export class ProductRepository extends BaseRepositoryImpl<Product, CreateProduct
       ORDER BY name ASC
     `;
     const result = await this.db.query(query);
-    
-    return result.rows.map(row => this.mapRowToCategory(row));
+
+
+    const rows: CategoryRow[] = result.rows;
+    return rows.map((row: CategoryRow) => this.mapRowToCategory(row));
   }
 
   /**
@@ -503,7 +508,32 @@ export class ProductRepository extends BaseRepositoryImpl<Product, CreateProduct
     `;
     const result = await this.db.query(query, [limit]);
     
-    return result.rows.map(row => this.mapRowToEntity(row));
+    interface PopularProductRow {
+      id: string;
+      sku: string;
+      name: string;
+      description?: string;
+      category_id: string;
+      price: string | number;
+      cost_price: string | number;
+      stock: string | number;
+      min_stock: string | number;
+      max_stock: string | number;
+      images?: any[];
+      tags?: string[];
+      is_active: boolean;
+      is_featured: boolean;
+      metadata?: Record<string, any>;
+      created_at: string | Date;
+      updated_at: string | Date;
+      deleted_at?: string | Date | null;
+      weight?: string | number;
+      dimensions?: any;
+      total_sold: string | number;
+    }
+
+    const rows: PopularProductRow[] = result.rows;
+    return rows.map((row: PopularProductRow) => this.mapRowToEntity(row));
   }
 
   /**

@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import type { PoolClient, PoolConfig, QueryResult } from 'pg';
+import type { PoolConfig, PoolClient, QueryResult } from 'pg';
 
 /**
  * Database Service
@@ -37,7 +37,9 @@ export class DatabaseService {
       ...config
     };
 
-    if (process.env.MOCK_DB === 'true' || process.env.NODE_ENV === 'test') {
+    // In test environments, use mock mode by default.
+    // To use a real database in tests, set MOCK_DB=false as an environment variable.
+    if (process.env.NODE_ENV === 'test' && process.env.MOCK_DB !== 'false') {
       this.mockMode = true;
       this.pool = null;
       // Define lightweight schemas for constraint simulation
